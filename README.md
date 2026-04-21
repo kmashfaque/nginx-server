@@ -1,245 +1,202 @@
-# Nginx Secure Web Server
+# ⚙️ Step-by-Step Setup
 
-A production-like secure web server using Nginx with HTTPS, SSL, and Reverse Proxy.
+## 🔹 1. Launch AWS EC2 Instance
 
-## Overview
+Use Ubuntu 22.04
 
-This project sets up a secure Nginx web server with:
-- Static website hosting
-- HTTPS using self-signed SSL certificate
-- HTTP → HTTPS automatic redirect
-- Reverse proxy to Node.js backend on port 3000
+Configure Security Group:
+- Port 22 (SSH)
+- Port 80 (HTTP)
+- Port 443 (HTTPS)
 
-## Project Structure
-
-```
-nginx-webserver/
-├── public/
-│   └── index.html          # Frontend HTML page
-├── configs/
-│   └── nginx.conf         # Nginx configuration
-├── server.js              # Node.js backend server
-├── package.json          # Node.js dependencies
-├── setup.sh              # Automated setup script
-└── README.md            # Documentation
+Connect to EC2:
+```bash
+ssh -i your-key.pem ubuntu@your-ec2-public-ip
 ```
 
-## Part 1: Basic Setup
-
-### Install Nginx & OpenSSL
+## 🔹 2. Install Required Packages
 
 ```bash
 sudo apt update
-sudo apt install -y nginx openssl
+sudo apt install nginx openssl -y
 ```
 
-### Create Web Root Directory
+Verify installation:
+```bash
+nginx -v
+```
+
+## 🔹 3. Setup Backend (Node.js)
 
 ```bash
-sudo mkdir -p /var/www/secure-app
-sudo chmod -R 755 /var/www/secure-app
+cd /home/ubuntu
+mkdir nginx-server
+cd nginx-server
+npm init -y
+npm install express
 ```
 
-### Create HTML Page
+Create server.js:
+```javascript
+const express = require("express");
+const app = express();
 
-Copy `public/index.html` to `/var/www/secure-app/`:
+app.get("/", (req, res) => {
+  res.send("Backend Running via Nginx Reverse Proxy 🚀");
+});
 
+app.listen(3000, () => {
+  console.log("Server running on port 3000");
+});
+```
+
+Run the server:
 ```bash
-sudo cp public/index.html /var/www/secure-app/
-```
-
-## Part 2: SSL Certificate
-
-### Generate Self-Signed SSL (365 days)
-
-```bash
-sudo mkdir -p /etc/nginx/ssl
-sudo openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
-    -keyout /etc/nginx/ssl/server.key \
-    -out /etc/nginx/ssl/server.crt \
-    -subj "/C=US/ST=State/L=City/O=Organization/CN=localhost"
-```
-
-Certificate stored in:
-- Certificate: `/etc/nginx/ssl/server.crt`
-- Private Key: `/etc/nginx/ssl/server.key`
-
-## Part 3: Nginx Configuration
-
-### Custom Configuration
-
-Create `/etc/nginx/sites-available/secure-app`:
-
-```nginx
-server {
-    listen 80;
-    server_name _;
-    return 301 https://$host$request_uri;
-}
-
-server {
-    listen 443 ssl http2;
-    server_name _;
-
-    ssl_certificate /etc/nginx/ssl/server.crt;
-    ssl_certificate_key /etc/nginx/ssl/server.key;
-
-    ssl_protocols TLSv1.2 TLSv1.3;
-    ssl_ciphers ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256;
-    ssl_prefer_server_ciphers off;
-
-    root /var/www/secure-app;
-    index index.html;
-
-    location / {
-        try_files $uri $uri/ =404;
-    }
-
-    location /api/ {
-        proxy_pass http://localhost:3000;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
-}
-```
-
-### Enable Configuration
-
-```bash
-sudo ln -sf /etc/nginx/sites-available/secure-app /etc/nginx/sites-enabled/
-sudo rm -f /etc/nginx/sites-enabled/default
-```
-
-## Part 4: Reverse Proxy
-
-### Backend Server (Port 3000)
-
-Start the Node.js backend:
-
-```bash
-cd nginx-webserver
-npm install
 node server.js
 ```
 
-Backend runs on `http://localhost:3000`
+## 🔹 4. Generate SSL Certificate
 
-### Nginx Proxy Configuration
+```bash
 
-The reverse proxy is configured in Part 3 (see `configs/nginx.conf`).
+ubuntu@ip-10-0-10-104:/home$ cd ubuntu/
+ubuntu@ip-10-0-10-104:~$ mkdir nginx-ssl-cert
+ubuntu@ip-10-0-10-104:~$ cd nginx-s
+-bash: cd: nginx-s: No such file or directory
+ubuntu@ip-10-0-10-104:~$ cd nginx-ssl-cert
 
-Key proxy settings:
-- `proxy_pass http://localhost:3000`
-- `proxy_set_header Host $host`
-- `proxy_set_header X-Real-IP $remote_addr`
-- `proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for`
 
-## Part 5: Testing
+openssl req -x509 -nodes -days 365 -newkey rsa 2048 -keyout nginx-cert.key -out nginx-cert.crt
 
-### Test Nginx Configuration
+```
+
+Fill in details:
+- Common Name → your EC2 public IP
+
+## 🔹 5. Configure Nginx
+
+```bash
+ubuntu@ip-10-0-10-104:~/nginx-server/configs$ sudo nano nginx.conf
+
+```
+
+Paste the following configuration:
+
+```nginx
+# HTTP → HTTPS redirect
+# how many worker should run
+worker_proesses 1
+
+events {
+    worker_connections 1024;
+
+}
+
+
+http {
+    include mime.types;
+   
+    # upstream 
+    upsrtream nodejs_cluster{
+        server 127.0.0.1:3000;
+
+    }
+    server{
+        listen 443 ssl;
+        server_name localhost;
+
+        # ssl certificate path id
+        ssl_certificate /home/ubuntu/nginx-ssl-cert/nginx-cert.crt;
+        ssl_certificate_key /home/ubuntu/nginx-ssl-cert/nginx-cert.key;
+
+        # server location
+        location / {
+            proxy_pass http://nodejs_cluster;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real_IP $remote_addr;
+            # proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        }
+
+    }
+
+    server {
+        listen 80;
+        server_name localhost;
+
+        # rdiect
+        location / {
+            return 301 https://$host$request_uri;
+        }   
+    }
+}
+```
+
+## 🔹 6. Test and Reload Nginx
 
 ```bash
 sudo nginx -t
-```
-
-Expected output:
-```
-nginx: the configuration file /etc/nginx/nginx.conf syntax is ok
-nginx: configuration file /etc/nginx/nginx.conf test is successful
-```
-
-### Reload Nginx
-
-```bash
 sudo systemctl reload nginx
 ```
 
-### Test HTTP → HTTPS Redirect
+---
 
-```bash
-curl -I http://localhost
+# 🧪 Testing & Verification
+
+## ✅ 1. HTTP → HTTPS Redirect
+
+Visit:
+```
+http://your-ec2-ip
 ```
 
-Expected: `301 Moved Permanently` redirecting to HTTPS
-
-### Test HTTPS Working
-
-```bash
-curl -I https://localhost
+✔ Automatically redirects to:
+```
+https://your-ec2-ip
 ```
 
-Expected: `200 OK` response
+## ✅ 2. HTTPS Working
 
-### Test Backend via Nginx
+Browser may show "Not Secure" warning (self-signed SSL)
+Click Advanced → Proceed
 
-```bash
-curl https://localhost/api/health
+✔ Page displays:
+```
+Secure Server Running via Nginx
 ```
 
-Expected: JSON response from backend
+## ✅ 3. Backend via Reverse Proxy
 
-```json
-{"status":"healthy","message":"Backend server is running","timestamp":"..."}
+Visit:
+```
+https://your-ec2-ip/api/
 ```
 
-## Running the Application
-
-### Quick Start (Automated)
-
-```bash
-chmod +x setup.sh
-./setup.sh
+✔ Output:
+```
+Backend Running via Nginx Reverse Proxy 🚀
 ```
 
-### Manual Start
+---
 
-1. Install dependencies:
-```bash
-npm install
-```
+# 📸 Required Screenshots
 
-2. Start backend server:
-```bash
-node server.js
-```
 
-3. In another terminal, start Nginx (or use the automated setup)
 
-## API Endpoints
+## Screenshot 1: EC2 Connection
+![Server Connection](server_connection.png)
 
-| Endpoint | Description |
-|----------|-------------|
-| `/` | Static website |
-| `/api/health` | Health check |
-| `/api/info` | Server information |
-| `/api/data` | Sample data |
+## Screenshot 2: nginx Status 
+![Screenshot: nginx -t output](systemctl_nginx.png)
 
-## Virtual Environment
+## Screenshot 3: SSL Certificate
+![Sucessful ssl Ceritficate](ssl_cert.png)
 
-To create a virtual environment for Node.js:
+## Screenshot 4: HTTP 
+![Screenshot: URL showing redirect](http_ss.png)
 
-```bash
-# Using nvm (recommended)
-curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.0/install.sh | bash
-source ~/.bashrc
-nvm install 18
-nvm use 18
+## Screenshot 5: HTTPS page loaded with redirect
+![Screenshot: HTTPS page](https.png)
 
-# Or using node version manager
-nvm install 18
-nvm use 18
-```
+## Screenshot 6: Backend response via /api/
+![Screenshot: API response](backend_working.png)
 
-## Screenshots
-
-After setup, you should see:
-
-1. **HTTP Redirect**: `curl -I http://localhost` returns 301
-2. **HTTPS Working**: `curl -I https://localhost` returns 200
-3. **Backend Running**: `curl https://localhost/api/health` returns JSON
-
-## License
-
-MIT
