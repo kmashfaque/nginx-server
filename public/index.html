@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Secure Server - Nginx</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            padding: 40px;
+            max-width: 600px;
+            width: 100%;
+        }
+        h1 {
+            color: #667eea;
+            margin-bottom: 10px;
+            font-size: 2em;
+        }
+        .subtitle {
+            color: #764ba2;
+            font-size: 1.2em;
+            margin-bottom: 30px;
+        }
+        .status {
+            background: #f0f0f0;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+        .status-label {
+            font-weight: bold;
+            color: #333;
+        }
+        .status-value {
+            color: #667eea;
+        }
+        .status-value.success {
+            color: #28a745;
+        }
+        .api-section {
+            margin-top: 30px;
+        }
+        .api-section h2 {
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 1.3em;
+        }
+        .api-buttons {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background 0.3s;
+        }
+        button:hover {
+            background: #764ba2;
+        }
+        #apiResponse {
+            margin-top: 20px;
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 10px;
+            font-family: monospace;
+            white-space: pre-wrap;
+            display: none;
+        }
+        #apiResponse.show {
+            display: block;
+        }
+        .badge {
+            display: inline-block;
+            background: #28a745;
+            color: white;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 12px;
+            margin-left: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Secure Server Running via Nginx <span class="badge">HTTPS</span></h1>
+        <p class="subtitle">Secure Web Server with Reverse Proxy</p>
+        
+        <div class="status">
+            <div><span class="status-label">Server:</span> <span class="status-value" id="serverType">-</span></div>
+            <div><span class="status-label">Protocol:</span> <span class="status-value" id="protocol">-</span></div>
+            <div><span class="status-label">Backend Status:</span> <span class="status-value" id="backendStatus">-</span></div>
+        </div>
+
+        <div class="api-section">
+            <h2>Test Backend API</h2>
+            <div class="api-buttons">
+                <button onclick="testAPI('/api/health')">Health Check</button>
+                <button onclick="testAPI('/api/info')">Server Info</button>
+                <button onclick="testAPI('/api/data')">Get Data</button>
+            </div>
+            <pre id="apiResponse"></pre>
+        </div>
+    </div>
+
+    <script>
+        function updateStatus() {
+            document.getElementById('serverType').textContent = 'Nginx Reverse Proxy';
+            document.getElementById('protocol').textContent = window.location.protocol.replace(':', '');
+            
+            fetch('/api/health')
+                .then(res => res.json())
+                .then(data => {
+                    document.getElementById('backendStatus').innerHTML = '<span class="success">Connected ✓</span>';
+                })
+                .catch(err => {
+                    document.getElementById('backendStatus').textContent = 'Disconnected';
+                });
+        }
+
+        function testAPI(endpoint) {
+            fetch(endpoint)
+                .then(res => res.json())
+                .then(data => {
+                    document.getElementById('apiResponse').textContent = JSON.stringify(data, null, 2);
+                    document.getElementById('apiResponse').classList.add('show');
+                })
+                .catch(err => {
+                    document.getElementById('apiResponse').textContent = 'Error: ' + err.message;
+                    document.getElementById('apiResponse').classList.add('show');
+                });
+        }
+
+        updateStatus();
+    </script>
+</body>
+</html>
+
+
+# Install nvm
+
